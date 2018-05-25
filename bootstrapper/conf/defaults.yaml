@@ -1,0 +1,33 @@
+
+bootstrap:
+  ethernet1-1:
+    label: Ethernet1/1
+    ip: 2.2.2.2/24
+    zone: Internet
+    interface_type: Layer3
+    interface_profile: PingSSHHTTPS
+  ethernet1-2:
+    label: Ethernet1/2
+    ip: 3.3.3.3/24
+    zone: Inside
+    interface_type: Layer3
+    interface_profile: PingSSHHTTPS
+  default_route:
+    route: 0.0.0.0/0
+    interface: Ethernet1/1
+    next-hop: 2.2.2.254
+    security_rule: Allow Out
+
+openstack:
+  image_name: panos
+  image_flavor: m1.large
+  management_network: mgmt_net
+  management_subnet: mgmt_subnet
+  management_ip: 1.1.1.1
+  outside_network: public
+  outside_subnet: public_subnet
+  outside_ip: 2.2.2.2
+  inside_network: private
+  inside_subnet: private_subnet
+  inside_ip: 3.3.3.3
+
