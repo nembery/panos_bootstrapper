@@ -169,6 +169,4 @@ def test_build_openstack_archive(client):
         "default_next_hop": "10.10.10.10"
     }
     r = client.post('/api/v0.1/generate_openstack_archive', data=json.dumps(params), content_type='application/json')
-    print r.data
-    d = json.loads(r.data)
-    assert d['success'] is True
+    assert r.status_code == 200
