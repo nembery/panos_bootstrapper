@@ -170,3 +170,32 @@ def test_build_openstack_archive(client):
     }
     r = client.post('/api/v0.1/generate_openstack_archive', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
+
+
+def test_add_template_location(client):
+    """
+    Tests the api to add a template location to the configuration
+    :param client: test client
+    :return: test assertions
+    """
+    params = {
+        "name": "TEST_LOCATION",
+        "description": "ADDED BY PYTEST",
+        "type": "local",
+        "location": "templates/test/123"
+    }
+    r = client.post('/api/v0.1/add_template_location', data=json.dumps(params), content_type='application/json')
+    assert r.status_code == 200
+
+
+def test_remove_template_location(client):
+    """
+    Tests the api to add a template location to the configuration
+    :param client: test client
+    :return: test assertions
+    """
+    params = {
+        "name": "TEST_LOCATION"
+    }
+    r = client.post('/api/v0.1/remove_template_location', data=json.dumps(params), content_type='application/json')
+    assert r.status_code == 200
