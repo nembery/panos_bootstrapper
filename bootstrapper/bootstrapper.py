@@ -54,16 +54,17 @@ def _build_base_configs(posted_json):
     if not common_required_keys.issubset(posted_json):
         abort(400, 'Not all required keys are present')
 
-    init_cfg_contents = render_template('init-cfg.txt', **posted_json)
+    init_cfg_contents = render_template('panos/init-cfg.txt', **posted_json)
     init_cfg_key = cache_utils.set(init_cfg_contents)
 
+    bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
+
     print 'checking bootstrap required_variables'
-    if not bootstrapper_utils.verify_data(posted_json):
+    if not bootstrapper_utils.verify_data(bootstrap_config):
         abort(400, 'Not all required keys for bootstrap.xml are present')
 
-    bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
-    bootstrap_xml = render_template('bootstrap.xml', **bootstrap_config)
-    authcode = render_template('authcodes', **bootstrap_config)
+    bootstrap_xml = render_template('panos/bootstrap.xml', **bootstrap_config)
+    authcode = render_template('panos/authcodes', **bootstrap_config)
 
     bs_key = cache_utils.set(bootstrap_xml)
     authcode_key = cache_utils.set(authcode)
@@ -187,15 +188,15 @@ def build_bootstrap():
     defaults = bootstrapper_utils.load_defaults()
     config = bootstrapper_utils.load_config()
 
-    init_cfg_contents = render_template('init-cfg.txt', **posted_json)
+    init_cfg_contents = render_template('panos/init-cfg.txt', **posted_json)
     init_cfg_key = cache_utils.set(init_cfg_contents)
+    bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
 
     print 'checking bootstrap required_variables'
-    if not bootstrapper_utils.verify_data(posted_json):
+    if not bootstrapper_utils.verify_data(bootstrap_config):
         return jsonify(message="Not all required keys for bootstrap.xml are present", success=False, status_code=400)
 
-    bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
-    bootstrap_xml = render_template('bootstrap.xml', **bootstrap_config)
+    bootstrap_xml = render_template('panos/bootstrap.xml', **bootstrap_config)
 
     bs_key = cache_utils.set(bootstrap_xml)
 
@@ -226,6 +227,88 @@ def build_bootstrap():
                        he_key=he_key, h_key=h_key)
 
     return jsonify(success=False, message="unknown deployment options")
+
+
+@app.route('/api/v0.1/add_template_location', methods=['POST'])
+def add_template_location():
+    """
+    Adds a template location to the configuration
+    :return: json with 'success', 'message' and 'status' keys
+    """
+    posted_json = request.get_json(force=True)
+    try:
+        name = posted_json['name']
+        location = posted_json['location']
+        description = posted_json.get('description', 'template repository')
+        repo_type = posted_json.get('type', 'local')
+
+    except KeyError:
+        print 'Not all required keys are present!'
+        return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
+
+    loaded_config = bootstrapper_utils.load_config()
+
+    if 'template_locations' not in loaded_config:
+        print 'invalid configuration found, hmmm...'
+        loaded_config['template_locations'] = list()
+
+    new_repo = dict()
+    new_repo['name'] = name
+    new_repo['location'] = location
+    new_repo['description'] = description
+    new_repo['type'] = repo_type
+
+    for location in loaded_config['template_locations']:
+        if location['name'] == name and location['type'] == repo_type:
+            return jsonify(success=True, message='template repository already exists in configuration', status_code=200)
+
+    loaded_config['template_locations'].append(new_repo)
+    if bootstrapper_utils.save_config(loaded_config):
+        return jsonify(success=True, message='Added template repository to the configuration', status_code=200)
+    else:
+        return jsonify(success=False, message='Could not add template repository to the configuration', status_code=500)
+
+
+@app.route('/api/v0.1/remove_template_location', methods=['POST'])
+def remove_template_location():
+    """
+    Removes a template location from the configuration
+    :return: json with 'success', 'message' and 'status' keys
+    """
+    posted_json = request.get_json(force=True)
+    try:
+        name = posted_json['name']
+
+    except KeyError:
+        print 'Not all required keys are present!'
+        return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
+
+    loaded_config = bootstrapper_utils.load_config()
+
+    if 'template_locations' not in loaded_config:
+        print 'invalid configuration found, hmmm...'
+        return jsonify(message="Invalid Configuration found!", success=False, status_code=500)
+
+    found = False
+    for location in loaded_config['template_locations']:
+        if location['name'] == name:
+            found = True
+            loaded_config['template_locations'].remove(location)
+            break
+
+    if found:
+        if bootstrapper_utils.save_config(loaded_config):
+            return jsonify(success=True, message='Removed template repository from the configuration', status_code=200)
+        else:
+            return jsonify(success=False, message='Could not remove template repository!', status_code=500)
+
+    return jsonify(success=True, message='Removed template repository from the configuration', status_code=200)
+
+
+@app.route('/api/v0.1/get_bootstrap_variables', methods=['GET'])
+def get_bootstrap_variables():
+    vs = bootstrapper_utils.get_bootstrap_variables()
+    return jsonify(success=True, variables=vs, status_code=200)
 
 
 if __name__ == '__main__':
