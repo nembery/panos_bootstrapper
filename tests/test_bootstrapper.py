@@ -199,3 +199,16 @@ def test_remove_template_location(client):
     }
     r = client.post('/api/v0.1/remove_template_location', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
+
+
+def test_get_bootstrap_variables(client):
+    """
+    Tests the api to retrieve the list of variables in the bootstrap.xml template
+    :param client: test client
+    :return: test assertions
+    """
+    r = client.get('/api/v0.1/get_bootstrap_variables')
+    assert r.status_code == 200
+    d = json.loads(r.data)
+    assert d['success'] is True
+    assert d['variables'] is not None
