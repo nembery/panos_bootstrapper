@@ -212,3 +212,77 @@ def test_get_bootstrap_variables(client):
     d = json.loads(r.data)
     assert d['success'] is True
     assert d['variables'] is not None
+
+
+def test_import_template(client):
+    """
+    Tests the api to import template files
+    :param client: test client
+    :return: test assertions
+    """
+    params = {
+        "name": "TEST_IMPORT",
+        "description": "ADDED BY PYTEST",
+        "template": "ASDFDFLKSDF:LKSD:KLSDF:LKSFDLDS:LKSDF:LKSD:LKSD:FLKSDF:KLSD:F"
+    }
+    r = client.post('/api/v0.1/import_template', data=json.dumps(params), content_type='application/json')
+    assert r.status_code == 200
+    d = json.loads(r.data)
+    assert d['success'] is True
+
+
+def test_list_templates(client):
+    """
+    Tests the api to retrieve the list of templates. This will test listed all files that are present in the
+    configuration as well as any files that are present in the import directory. Manually create a file on the
+    filesystem and verify it shows up in the list. This allows the operator to import files on startup via
+    docker volumes or ansible or whatever
+    :param client: test client
+    :return: test assertions
+    """
+
+    # manually write a file into the import directory
+    with open('./bootstrapper/templates/import/MANUAL_IMPORT', 'w') as mi:
+        mi.write('manually imported template')
+
+    # call the list templates API
+    r = client.get('/api/v0.1/list_templates')
+    assert r.status_code == 200
+    d = json.loads(r.data)
+    assert d['success'] is True
+    assert d['templates'] is not None
+
+    # mow iter over all found templates and verify we have all we need here (imported and manually created)
+    found_import = False
+    found_manual = False
+    for t in d['templates']:
+        if t['name'] == 'TEST_IMPORT':
+            found_import = True
+        elif t['name'] == 'MANUAL_IMPORT':
+            found_manual = True
+
+    assert found_import is True
+    assert found_manual is True
+
+
+def test_delete_template(client):
+    """
+    Tests the api to delete template files
+    :param client: test client
+    :return: test assertions
+    """
+    params = {
+        "name": "TEST_IMPORT"
+    }
+    r = client.post('/api/v0.1/delete_template', data=json.dumps(params), content_type='application/json')
+    assert r.status_code == 200
+    d = json.loads(r.data)
+    assert d['success'] is True
+
+    # also delete our manually created file as well
+    params = {
+        "name": "MANUAL_IMPORT"
+    }
+    m = client.post('/api/v0.1/delete_template', data=json.dumps(params), content_type='application/json')
+    assert m.status_code == 200
+
