@@ -78,12 +78,11 @@ def create_archive(files, archive_name):
         return None
 
     try: 
-        make_archive(archive_file_path, 'zip', _archive_dir)
+        zip_file = make_archive(archive_file_path, 'zip', root_dir=archive_file_path)
     except [ValueError, OSError]:
         log.error('Could not make zip archive')
         return None
 
-    zip_file = archive_file_path + '.zip'
     log.info('Created %s successfully' % zip_file)
     return zip_file
 
