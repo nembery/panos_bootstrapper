@@ -52,10 +52,14 @@ def _build_base_configs(posted_json):
                             'management_ip', 'management_mask', 'management_gateway', 'dns_server'}
 
     if not common_required_keys.issubset(posted_json):
+        print 'Not all required keys are present for build_base_config!!'
         abort(400, 'Not all required keys are present')
 
     init_cfg_contents = render_template('panos/init-cfg.txt', **posted_json)
     init_cfg_key = cache_utils.set(init_cfg_contents)
+
+    authcode = render_template('panos/authcodes', **posted_json)
+    authcode_key = cache_utils.set(authcode)
 
     bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
 
@@ -64,10 +68,8 @@ def _build_base_configs(posted_json):
         abort(400, 'Not all required keys for bootstrap.xml are present')
 
     bootstrap_xml = render_template('panos/bootstrap.xml', **bootstrap_config)
-    authcode = render_template('panos/authcodes', **bootstrap_config)
 
     bs_key = cache_utils.set(bootstrap_xml)
-    authcode_key = cache_utils.set(authcode)
 
     base_config = dict()
 
@@ -309,6 +311,54 @@ def remove_template_location():
 def get_bootstrap_variables():
     vs = bootstrapper_utils.get_bootstrap_variables()
     return jsonify(success=True, variables=vs, status_code=200)
+
+
+@app.route('/api/v0.1/import_template', methods=['POST'])
+def import_template():
+    """
+    Adds a template location to the configuration
+    :return: json with 'success', 'message' and 'status' keys
+    """
+    posted_json = request.get_json(force=True)
+    try:
+        name = posted_json['name']
+        template = posted_json['template']
+        description = posted_json.get('description', 'Imported Template')
+
+    except KeyError:
+        print 'Not all required keys are present!'
+        return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
+
+    if bootstrapper_utils.import_template(template, name, description):
+        return jsonify(success=True, message='Imported Template Successfully', status_code=200)
+    else:
+        return jsonify(success=False, message='Could not import template repository to the configuration',
+                       status_code=500)
+
+
+@app.route('/api/v0.1/delete_template', methods=['POST'])
+def delete_template():
+    """
+    Adds a template location to the configuration
+    :return: json with 'success', 'message' and 'status' keys
+    """
+    posted_json = request.get_json(force=True)
+    try:
+        name = posted_json['name']
+    except KeyError:
+        print 'Not all required keys are present!'
+        return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
+
+    if bootstrapper_utils.delete_imported_template(name):
+        return jsonify(success=True, message='Deleted Template Successfully', status_code=200)
+    else:
+        return jsonify(success=False, message='Could not delete template', status_code=500)
+
+
+@app.route('/api/v0.1/list_templates', methods=['GET'])
+def list_templates():
+    ts = bootstrapper_utils.list_templates()
+    return jsonify(success=True, templates=ts, status_code=200)
 
 
 if __name__ == '__main__':
