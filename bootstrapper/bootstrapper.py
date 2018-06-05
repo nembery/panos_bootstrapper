@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import logging
 
 from flask import Flask
 from flask import abort
@@ -16,8 +15,6 @@ from lib import openstack_utils
 app = Flask(__name__)
 defaults = bootstrapper_utils.load_defaults()
 config = bootstrapper_utils.load_config()
-
-log = logging.getLogger(__name__)
 
 
 @app.route('/')

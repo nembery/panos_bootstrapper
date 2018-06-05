@@ -115,7 +115,8 @@ def import_template(template, file_name, description):
         with open(os.path.join(import_directory, '%s' % file_name), 'w+') as template_file:
             print 'WRITING TEMPLATE'
             print os.path.join(import_directory, '%s' % file_name)
-            template_file.write(template)
+            unescaped_template = unescape(template)
+            template_file.write(unescaped_template)
 
     except OSError:
         print 'Could not save new template!'
@@ -292,3 +293,16 @@ def generate_config(defaults, posted_json):
 
     return bootstrap_config
 
+
+def unescape(s):
+    """
+    :param s: String - string that should be have html entities removed
+    :return: string with html entities removed
+    """
+    s = s.replace("&lt;", "<")
+    s = s.replace("&gt;", ">")
+    s = s.replace("&amp;", "&")
+    s = s.replace("&quot;", '"')
+    s = s.replace("&#39;", "'")
+    s = s.replace("\\n", "\n")
+    return s
