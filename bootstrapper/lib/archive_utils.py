@@ -2,7 +2,7 @@ import logging
 import os
 from shutil import make_archive
 
-import cache_utils
+from . import cache_utils
 
 _archive_dir = '/tmp/bootstrapper/archives'
 log = logging.getLogger(__name__)
@@ -116,11 +116,11 @@ def create_iso(files, archive_name):
             '-allow-lowercase -allow-multidot -o %s %s' % (iso_image, archive_file_path)
         )
         if rv != 0:
-            print 'Cold not make ISO Image!'
+            print("Cold not make ISO Image!")
             return None
 
     except [ValueError, OSError]:
-        print 'Could not make ISO Image'
+        print("Could not make ISO Image")
         log.error('Could not make ISO image')
         return None
 

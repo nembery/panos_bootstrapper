@@ -14,12 +14,12 @@ def get_bootstrap_template():
     config = load_config()
     default = config.get('default_template', 'Default')
     for tl in config.get('template_locations', ()):
-        print 'checking %s' % tl['name']
+        print("checking %s") % tl['name']
         if tl["name"] == default:
             bootstrap_template = tl['location'] + '/bootstrap.xml'
             return bootstrap_template
 
-    print 'OH NO! Returning default location'
+    print("OH NO! Returning default location")
     return 'templates/panos/bootstrap.xml'
 
 
@@ -39,11 +39,11 @@ def load_config():
                     config = yaml.load(config_file.read())
 
                 if type(config) is not dict:
-                    print 'Unknown config object from configuration.yaml'
+                    print("Unknown config object from configuration.yaml")
                     config = dict()
 
                 if 'template_locations' not in config:
-                    print 'invalid configuration found, hmmm...'
+                    print("invalid configuration found, hmmm...")
                     config['template_locations'] = list()
 
                 g.bootstrap_config = config
@@ -55,10 +55,10 @@ def load_config():
                 #         config['template_locations'] = template_config_object['template_locations']
                 #
                 #     else:
-                #         print 'Invalid template configuration file at templates.yaml'
+                #         print("Invalid template configuration file at templates.yaml")
 
             except yaml.scanner.ScannerError:
-                print 'Could not load configuration files!'
+                print("Could not load configuration files!")
                 raise
 
         return config
@@ -73,7 +73,7 @@ def save_config(new_config):
                 g.bootstrap_config = config_object
 
     except OSError:
-        print 'Could not save new configuration!'
+        print("Could not save new configuration!")
         return False
 
     return True
@@ -99,32 +99,32 @@ def import_template(template, file_name, description):
 
     for location in loaded_config['template_locations']:
         if location['name'] == file_name and location['type'] == 'local':
-            print 'A template with this name already exists'
+            print("A template with this name already exists")
             return True
 
     rel_import_directory = loaded_config.get('template_import_directory', 'templates/import')
     import_directory = os.path.abspath(os.path.join(app.root_path, '..', rel_import_directory))
 
-    print rel_import_directory
+    print(rel_import_directory)
 
     try:
         if not os.path.exists(import_directory):
-            print 'Creating import directory'
+            print("Creating import directory")
             os.makedirs(import_directory)
 
         with open(os.path.join(import_directory, '%s' % file_name), 'w+') as template_file:
-            print 'WRITING TEMPLATE'
-            print os.path.join(import_directory, '%s' % file_name)
+            print("WRITING TEMPLATE")
+            print(os.path.join(import_directory, '%s' % file_name))
             unescaped_template = unescape(template)
             template_file.write(unescaped_template)
 
     except OSError:
-        print 'Could not save new template!'
+        print("Could not save new template!")
         return False
 
     loaded_config['template_locations'].append(new_import)
     if not save_config(loaded_config):
-        print 'Could not save new configuration with imported template!'
+        print("Could not save new configuration with imported template!")
         return False
 
     return True
@@ -142,11 +142,11 @@ def delete_imported_template(file_name):
     rel_import_directory = loaded_config.get('template_import_directory', 'templates/import')
     import_directory = os.path.abspath(os.path.join(app.root_path, '..', rel_import_directory))
 
-    print rel_import_directory
+    print(rel_import_directory)
 
     try:
         if not os.path.exists(import_directory):
-            print 'Invalid Configuration!'
+            print("Invalid Configuration!")
             return False
 
         template_file = os.path.join(import_directory, '%s' % file_name)
@@ -154,7 +154,7 @@ def delete_imported_template(file_name):
             os.remove(template_file)
 
     except OSError:
-        print 'Could not delete template!'
+        print("Could not delete template!")
         return False
 
     found = False
@@ -166,7 +166,7 @@ def delete_imported_template(file_name):
 
     if found:
         if not save_config(loaded_config):
-            print 'Could not save configuration after delete!'
+            print("Could not save configuration after delete!")
             return False
 
     return True
@@ -184,7 +184,7 @@ def list_templates():
     import_directory = os.path.abspath(os.path.join(app.root_path, '..', rel_import_directory))
     all_imported_files = os.listdir(import_directory)
 
-    print all_imported_files
+    print(all_imported_files)
 
     all_templates = loaded_config['template_locations']
 
@@ -192,12 +192,12 @@ def list_templates():
     for file_name in all_imported_files:
         for location in loaded_config['template_locations']:
             if location['name'] == file_name and location['type'] == 'local':
-                print 'A template with this name already exists'
+                print("A template with this name already exists")
                 file_already_configured = True
                 break
 
         if not file_already_configured:
-            print 'adding new file to list %s' % file_name
+            print("adding new file to list %s") % file_name
             new_import = dict()
             new_import['name'] = file_name
             new_import['location'] = 'templates/import'
@@ -236,11 +236,11 @@ def verify_data(available_vars):
     """
     template_path = get_bootstrap_template()
     vs = __get_required_vars_from_template(template_path)
-    print vs
+    print(vs)
     for r in vs:
-        print 'checking var: %s' % r
+        print("checking var: %s") % r
         if r not in available_vars:
-            print 'template variable %s is not defined!!' % r
+            print("template variable %s is not defined!!") % r
             return False
 
     return True

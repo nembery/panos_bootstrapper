@@ -22,7 +22,7 @@ def __get_cache():
         return __cache
 
     try:
-        __cache = FileSystemCache(cache_dir='/tmp/bootstrapper/cache/', threshold=256, default_timeout=300, mode=0600)
+        __cache = FileSystemCache(cache_dir='/tmp/bootstrapper/cache/', threshold=256, default_timeout=300, mode=0o600)
         return __cache
     except OSError:
         raise

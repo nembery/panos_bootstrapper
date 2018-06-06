@@ -7,7 +7,6 @@ from bootstrapper import bootstrapper
 @pytest.fixture
 def client():
     client = bootstrapper.app.test_client()
-
     yield client
 
 
@@ -91,7 +90,7 @@ def test_build_openstack_bootstrap(client):
         "default_next_hop": "10.10.10.10"
     }
     r = client.post('/api/v0.1/build_bootstrap', data=json.dumps(params), content_type='application/json')
-    print r.data
+    print(r.data)
     d = json.loads(r.data)
     assert d['openstack_config'] is not None
     assert d['openstack_config']['hostname'] == "panos-81"
@@ -117,7 +116,7 @@ def test_build_base_configs(client):
         "default_next_hop": "10.10.10.10"
     }
     r = client.post('/api/v0.1/debug_base_config', data=json.dumps(params), content_type='application/json')
-    print r.data
+    print(r.data)
     d = json.loads(r.data)
     assert d['success'] is True
 
@@ -143,7 +142,7 @@ def test_build_openstack_configs(client):
         "default_next_hop": "10.10.10.10"
     }
     r = client.post('/api/v0.1/debug_openstack_config', data=json.dumps(params), content_type='application/json')
-    print r.data
+    print(r.data)
     d = json.loads(r.data)
     assert d['success'] is True
 

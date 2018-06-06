@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from flask import Flask
 from flask import abort
 from flask import jsonify
@@ -7,10 +5,10 @@ from flask import render_template
 from flask import request
 from flask import send_file
 
-from lib import archive_utils
-from lib import bootstrapper_utils
-from lib import cache_utils
-from lib import openstack_utils
+from bootstrapper.lib import archive_utils
+from bootstrapper.lib import bootstrapper_utils
+from bootstrapper.lib import cache_utils
+from bootstrapper.lib import openstack_utils
 
 app = Flask(__name__)
 defaults = bootstrapper_utils.load_defaults()
@@ -49,7 +47,7 @@ def _build_base_configs(posted_json):
                             'management_ip', 'management_mask', 'management_gateway', 'dns_server'}
 
     if not common_required_keys.issubset(posted_json):
-        print 'Not all required keys are present for build_base_config!!'
+        print("Not all required keys are present for build_base_config!!")
         abort(400, 'Not all required keys are present')
 
     init_cfg_contents = render_template('panos/init-cfg.txt', **posted_json)
@@ -60,7 +58,7 @@ def _build_base_configs(posted_json):
 
     bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
 
-    print 'checking bootstrap required_variables'
+    print("checking bootstrap required_variables")
     if not bootstrapper_utils.verify_data(bootstrap_config):
         abort(400, 'Not all required keys for bootstrap.xml are present')
 
@@ -133,7 +131,7 @@ def debug_openstack_cnfig():
     posted_json = request.get_json(force=True)
     base_config = _build_base_configs(posted_json)
     openstack_config = _build_openstack_heat(base_config, posted_json)
-    print openstack_config
+    print(openstack_config)
     return jsonify(message="Openstack Config built", success=True, status_code=200)
 
 
@@ -146,7 +144,7 @@ def generate_openstack_archive():
         abort(400, 'No hostname found in posted data')
 
     zipfile = archive_utils.create_archive(base_config, posted_json['hostname'])
-    print 'zipfile path is: %s' % zipfile
+    print("zipfile path is: %s") % zipfile
     if zipfile is None:
         abort(500, 'Could not create archive! Check bootstrapper logs for more information')
 
@@ -161,7 +159,7 @@ def generate_kvm_iso():
         abort(400, 'No hostname found in posted data')
 
     iso_image = archive_utils.create_iso(base_config, posted_json['hostname'])
-    print 'iso path is: %s' % iso_image
+    print("iso path is: %s") % iso_image
     if iso_image is None:
         abort(500, 'Could not create ISO Image! Check bootstrapper logs for more information')
 
@@ -191,7 +189,7 @@ def build_bootstrap():
     init_cfg_key = cache_utils.set(init_cfg_contents)
     bootstrap_config = bootstrapper_utils.generate_config(defaults, posted_json)
 
-    print 'checking bootstrap required_variables'
+    print("checking bootstrap required_variables")
     if not bootstrapper_utils.verify_data(bootstrap_config):
         return jsonify(message="Not all required keys for bootstrap.xml are present", success=False, status_code=400)
 
@@ -242,13 +240,13 @@ def add_template_location():
         repo_type = posted_json.get('type', 'local')
 
     except KeyError:
-        print 'Not all required keys are present!'
+        print("Not all required keys are present!")
         return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
 
     loaded_config = bootstrapper_utils.load_config()
 
     if 'template_locations' not in loaded_config:
-        print 'invalid configuration found, hmmm...'
+        print("invalid configuration found, hmmm...")
         loaded_config['template_locations'] = list()
 
     new_repo = dict()
@@ -279,13 +277,13 @@ def remove_template_location():
         name = posted_json['name']
 
     except KeyError:
-        print 'Not all required keys are present!'
+        print("Not all required keys are present!")
         return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
 
     loaded_config = bootstrapper_utils.load_config()
 
     if 'template_locations' not in loaded_config:
-        print 'invalid configuration found, hmmm...'
+        print("invalid configuration found, hmmm...")
         return jsonify(message="Invalid Configuration found!", success=False, status_code=500)
 
     found = False
@@ -323,7 +321,7 @@ def import_template():
         description = posted_json.get('description', 'Imported Template')
 
     except KeyError:
-        print 'Not all required keys are present!'
+        print("Not all required keys are present!")
         return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
 
     if bootstrapper_utils.import_template(template, name, description):
@@ -343,7 +341,7 @@ def delete_template():
     try:
         name = posted_json['name']
     except KeyError:
-        print 'Not all required keys are present!'
+        print("Not all required keys are present!")
         return jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
 
     if bootstrapper_utils.delete_imported_template(name):
