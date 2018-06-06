@@ -144,7 +144,7 @@ def generate_openstack_archive():
         abort(400, 'No hostname found in posted data')
 
     zipfile = archive_utils.create_archive(base_config, posted_json['hostname'])
-    print("zipfile path is: %s") % zipfile
+    print("zipfile path is: %s" % zipfile)
     if zipfile is None:
         abort(500, 'Could not create archive! Check bootstrapper logs for more information')
 
@@ -159,7 +159,7 @@ def generate_kvm_iso():
         abort(400, 'No hostname found in posted data')
 
     iso_image = archive_utils.create_iso(base_config, posted_json['hostname'])
-    print("iso path is: %s") % iso_image
+    print("iso path is: %s" % iso_image)
     if iso_image is None:
         abort(500, 'Could not create ISO Image! Check bootstrapper logs for more information')
 

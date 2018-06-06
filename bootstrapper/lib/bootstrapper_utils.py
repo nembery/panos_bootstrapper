@@ -12,10 +12,12 @@ app = Flask(__name__)
 
 def get_bootstrap_template():
     config = load_config()
+    print('config is %s' % config)
     default = config.get('default_template', 'Default')
-    for tl in config.get('template_locations', ()):
-        print("checking %s") % tl['name']
-        if tl["name"] == default:
+    for tl in config.get('template_locations', {}):
+        name = tl.get('name', '')
+        print(f"checking {name}")
+        if name == default:
             bootstrap_template = tl['location'] + '/bootstrap.xml'
             return bootstrap_template
 
@@ -197,7 +199,7 @@ def list_templates():
                 break
 
         if not file_already_configured:
-            print("adding new file to list %s") % file_name
+            print("adding new file to list %s" % file_name)
             new_import = dict()
             new_import['name'] = file_name
             new_import['location'] = 'templates/import'
@@ -238,9 +240,9 @@ def verify_data(available_vars):
     vs = __get_required_vars_from_template(template_path)
     print(vs)
     for r in vs:
-        print("checking var: %s") % r
+        print("checking var: %s" % r)
         if r not in available_vars:
-            print("template variable %s is not defined!!") % r
+            print("template variable %s is not defined!!" % r)
             return False
 
     return True
