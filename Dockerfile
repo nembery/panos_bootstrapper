@@ -2,7 +2,7 @@
 FROM python:alpine
 
 LABEL description="Panos Bootstrap Builder Tool"
-LABEL version="0.1"
+LABEL version="0.3"
 LABEL maintainer="nembery@paloaltonetworks.com"
 
 WORKDIR /app
@@ -13,6 +13,7 @@ COPY bootstrapper /app/bootstrapper
 COPY tests /app/tests
 
 EXPOSE 5000
+ENV FLASK_APP=/app/bootstrapper/bootstrapper.py
 
-ENTRYPOINT ["python"]
-CMD ["/app/bootstrapper/bootstrapper.py"]
+#ENTRYPOINT ["python"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]

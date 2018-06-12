@@ -1,8 +1,4 @@
 base_url: http://127.0.0.1:5000
 default_template: Default
 template_import_directory: templates/import
-template_locations:
-- description: Default panos bootstrapper configuration templates
-  location: templates/panos
-  name: Default
-  type: local
+

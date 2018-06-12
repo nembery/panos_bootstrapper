@@ -11,4 +11,5 @@ py==1.5.3
 pytest==3.5.1
 PyYAML==3.12
 six==1.11.0
+SQLAlchemy==1.2.8
 Werkzeug==0.14.1

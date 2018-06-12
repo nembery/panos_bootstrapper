@@ -1,0 +1,4 @@
+---
+bootstrap:
+  - name: AWS Bootstrap
+    description: Template Suitable for booting AWS

@@ -1,5 +1,6 @@
 import pytest
 from flask import json
+import time
 
 from bootstrapper import bootstrapper
 
@@ -206,11 +207,14 @@ def test_get_bootstrap_variables(client):
     :param client: test client
     :return: test assertions
     """
-    r = client.get('/api/v0.1/get_bootstrap_variables')
+    params = {
+        "bootstrap_template": "Default bootstrap.xml"
+    }
+    r = client.post('/api/v0.1/get_bootstrap_variables', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
     d = json.loads(r.data)
     assert d['success'] is True
-    assert d['variables'] is not None
+    assert d['payload'] is not None
 
 
 def test_import_template(client):
@@ -240,10 +244,11 @@ def test_list_templates(client):
     :return: test assertions
     """
 
-    # manually write a file into the import directory
-    with open('./bootstrapper/templates/import/MANUAL_IMPORT', 'w') as mi:
-        mi.write('manually imported template')
-
+    # # manually write a file into the import directory
+    # with open('./bootstrapper/templates/import/MANUAL_IMPORT', 'w') as mi:
+    #     mi.write('manually imported template')
+    #
+    # time.sleep(1)
     # call the list templates API
     r = client.get('/api/v0.1/list_templates')
     assert r.status_code == 200
@@ -253,15 +258,12 @@ def test_list_templates(client):
 
     # mow iter over all found templates and verify we have all we need here (imported and manually created)
     found_import = False
-    found_manual = False
     for t in d['templates']:
         if t['name'] == 'TEST_IMPORT':
             found_import = True
-        elif t['name'] == 'MANUAL_IMPORT':
-            found_manual = True
 
+    print(d)
     assert found_import is True
-    assert found_manual is True
 
 
 def test_delete_template(client):
