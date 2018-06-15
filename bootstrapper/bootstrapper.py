@@ -2,8 +2,10 @@ from flask import Flask
 from flask import abort
 from flask import jsonify
 from flask import render_template
+from flask import render_template_string
 from flask import request
 from flask import send_file
+from flask import Response
 
 from bootstrapper.lib import archive_utils
 from bootstrapper.lib import bootstrapper_utils
@@ -12,6 +14,7 @@ from bootstrapper.lib import openstack_utils
 from bootstrapper.lib.db import db_session
 from bootstrapper.lib.db import init_db
 
+from urllib.parse import unquote
 
 app = Flask(__name__)
 defaults = bootstrapper_utils.load_defaults()
@@ -27,19 +30,30 @@ def index():
     return render_template('index.html', title='Bootstrapper')
 
 
-@app.route('/api/v0.1/get_object', methods=['POST'])
-def get_object():
+@app.route('/api/v0.1/get_object/<key>', methods=['GET'])
+def get_object(key):
     """
     Get object from cache, useful to 'chain' together actions
     :return: json encoded string with dict containing with key and contents keys
     """
-    posted_json = request.get_json(force=True)
-    key = posted_json.get('key', None)
-    if key is None:
-        return jsonify(message="Not all required keys are present", success=False, status_code=400)
+    if key is None or key == "":
+        return jsonify(message="Not all required params are present", success=False, status_code=400)
 
     contents = cache_utils.get(key)
     return jsonify(key=key, contents=contents)
+
+
+@app.route('/api/v0.1/get/<key>', methods=['GET'])
+def get_object_contents(key):
+    """
+    Get object from cache, useful to 'chain' together actions
+    :return: json encoded string with dict containing with key and contents keys
+    """
+    if key is None or key == "":
+        return jsonify(message="Not all required params are present", success=False, status_code=400)
+
+    contents = cache_utils.get(key)
+    return Response(contents)
 
 
 @app.route('/api/v0.1/set_object', methods=['POST'])
@@ -63,45 +77,65 @@ def _build_base_configs(configuration_parameters):
     :param configuration_parameters:  Simple dict of parameters
     :return: dict containing 'bootstrap.xml', 'authcodes', and 'init-cfg-static.txt' keys
     """
-    common_required_keys = {'hostname', 'auth_key',
-                            'management_ip', 'management_mask', 'management_gateway', 'dns_server'}
+
+    # first check for a custom init-cfg file passed in as a parameter
+    if 'init_cfg' in configuration_parameters:
+        init_cfg_name = configuration_parameters['init_cfg']
+        init_cfg_template = bootstrapper_utils.get_template(init_cfg_name)
+        if init_cfg_template is None:
+            init_cfg_template = bootstrapper_utils.get_template(config.get('default_init_cfg'), 'init-cfg-static.txt')
+    else:
+        print('using default init-cfg')
+        init_cfg_name = config.get('default_init_cfg', 'init-cfg-static.txt')
+        init_cfg_template = bootstrapper_utils.get_template(init_cfg_name)
+
+    if init_cfg_template is None:
+        print('init-cfg-template template was None')
+        abort(500, 'Could not load %s' % init_cfg_name)
+
+    print('getting required_keys')
+    common_required_keys = bootstrapper_utils.get_required_vars_from_template(init_cfg_name)
+    # common_required_keys = {'hostname', 'auth_key',
+    #                       'management_ip', 'management_mask', 'management_gateway', 'dns_server'}
 
     if not common_required_keys.issubset(configuration_parameters):
         print("Not all required keys are present for build_base_config!!")
         abort(400, 'Not all required keys are present')
 
-    init_cfg_contents = render_template('panos/init-cfg-static.txt', **configuration_parameters)
+    init_cfg_contents = render_template_string(init_cfg_template, **configuration_parameters)
     init_cfg_key = cache_utils.set(init_cfg_contents)
 
-    authcode = render_template('panos/authcodes', **configuration_parameters)
-    authcode_key = cache_utils.set(authcode)
-
-    bootstrap_config = bootstrapper_utils.generate_boostrap_config_with_defaults(defaults, configuration_parameters)
-
-    print("checking bootstrap required_variables")
-    if not bootstrapper_utils.verify_data(bootstrap_config):
-        abort(400, 'Not all required keys for bootstrap.xml are present')
-
-    bootstrap_xml = render_template('panos/bootstrap.xml', **bootstrap_config)
-
-    bs_key = cache_utils.set(bootstrap_xml)
-
     base_config = dict()
-
-    base_config['bootstrap.xml'] = dict()
-    base_config['bootstrap.xml']['key'] = bs_key
-    base_config['bootstrap.xml']['archive_path'] = 'config'
-    base_config['bootstrap.xml']['url'] = config["base_url"] + '/api/v0.1/get/' + bs_key
-
     base_config['init-cfg-static.txt'] = dict()
     base_config['init-cfg-static.txt']['key'] = init_cfg_key
     base_config['init-cfg-static.txt']['archive_path'] = 'config'
     base_config['init-cfg-static.txt']['url'] = config["base_url"] + '/api/v0.1/get/' + init_cfg_key
 
-    base_config['authcodes'] = dict()
-    base_config['authcodes']['key'] = authcode_key
-    base_config['authcodes']['archive_path'] = 'license'
-    base_config['authcodes']['url'] = config["base_url"] + '/api/v0.1/get/' + init_cfg_key
+    if 'auth_key' in configuration_parameters:
+        authcode = render_template('panos/authcodes', **configuration_parameters)
+        authcode_key = cache_utils.set(authcode)
+        base_config['authcodes'] = dict()
+        base_config['authcodes']['key'] = authcode_key
+        base_config['authcodes']['archive_path'] = 'license'
+        base_config['authcodes']['url'] = config["base_url"] + '/api/v0.1/get/' + init_cfg_key
+
+    if 'bootstrap_template' in configuration_parameters:
+        bootstrap_template_name = configuration_parameters['bootstrap_template']
+        bootstrap_config = bootstrapper_utils.generate_boostrap_config_with_defaults(defaults, configuration_parameters)
+
+        bootstrap_template = bootstrapper_utils.get_template(bootstrap_template_name)
+
+        print("checking bootstrap required_variables")
+        if not bootstrapper_utils.verify_data(bootstrap_template, bootstrap_config):
+            abort(400, 'Not all required keys for bootstrap.xml are present')
+
+        bootstrap_xml = render_template_string(bootstrap_template, **bootstrap_config)
+        bs_key = cache_utils.set(bootstrap_xml)
+
+        base_config['bootstrap.xml'] = dict()
+        base_config['bootstrap.xml']['key'] = bs_key
+        base_config['bootstrap.xml']['archive_path'] = 'config'
+        base_config['bootstrap.xml']['url'] = config["base_url"] + '/api/v0.1/get/' + bs_key
 
     return base_config
 
@@ -143,16 +177,51 @@ def _build_openstack_heat(base_config, posted_json, archive=False):
 def debug_base_config():
     posted_json = request.get_json(force=True)
     base_config = _build_base_configs(posted_json)
-    return jsonify(message="Base Config built", success=True, status_code=200)
+    return jsonify(message="Base Config built", configurations=base_config, success=True, status_code=200)
 
 
 @app.route('/api/v0.1/debug_openstack_config', methods=['POST'])
-def debug_openstack_cnfig():
+def debug_openstack_config():
     posted_json = request.get_json(force=True)
+
+    if 'bootstrap_template' not in posted_json:
+        print('setting default bootstrap')
+        posted_json['bootstrap_template'] = config.get('default_template')
+
     base_config = _build_base_configs(posted_json)
+    print(base_config)
     openstack_config = _build_openstack_heat(base_config, posted_json)
     print(openstack_config)
-    return jsonify(message="Openstack Config built", success=True, status_code=200)
+    return jsonify(message="Openstack Config built", openstack_config=openstack_config, success=True, status_code=200)
+
+
+@app.route('/api/v0.1/generate_bootstrap_archive', methods=['POST'])
+def generate_bootstrap_archive():
+    posted_json = request.get_json(force=True)
+    base_config = _build_base_configs(posted_json)
+
+    # if desired deployment type is openstack, then add the heat templates and whatnot
+    if 'deployment_type' in posted_json and posted_json['deployment_type'] == 'openstack':
+        base_config = _build_openstack_heat(base_config, posted_json, archive=True)
+
+    if 'hostname' not in posted_json:
+        abort(400, 'No hostname found in posted data')
+
+    # if the user supplies an 'archive_type' parameter we can return either a ZIP or ISO
+    archive_type = posted_json.get('archive_type', 'zip')
+
+    # user has specified they want an ISO built
+    if archive_type == 'iso':
+        archive = archive_utils.create_iso(base_config, posted_json['hostname'])
+
+    else:
+        # no ISO required, just make a zip
+        archive = archive_utils.create_archive(base_config, posted_json['hostname'])
+    print("archive path is: %s" % archive)
+    if archive is None:
+        abort(500, 'Could not create archive! Check bootstrapper logs for more information')
+
+    return send_file(archive)
 
 
 @app.route('/api/v0.1/generate_openstack_archive', methods=['POST'])
@@ -321,14 +390,29 @@ def remove_template_location():
 
 @app.route('/api/v0.1/get_bootstrap_variables', methods=['POST'])
 def get_bootstrap_variables():
-    print('OK')
+    print('Compiling variables required in payload to generate a valid bootstrap archive')
     posted_json = request.get_json(force=True)
-    print(posted_json)
     vs = bootstrapper_utils.get_bootstrap_variables(posted_json)
-    print(vs)
     payload = dict()
-    for v in vs:
-        payload[v] = ""
+
+    if 'bootstrap_template' in posted_json and posted_json['bootstrap_template'] is not None:
+        print('Setting bootstrap name')
+        payload['bootstrap_template'] = posted_json['bootstrap_template']
+    else:
+        print('No bootstrap file requested')
+
+    if 'init_cfg_template' in posted_json and posted_json['init_cfg_template'] is not None:
+        print('Setting init_cfg_name')
+        payload['init_cfg_template'] = posted_json['init_cfg_template']
+    else:
+        print('No init_cfg file requested')
+
+    if 'format' in posted_json and posted_json['format'] == 'aframe':
+        for v in vs:
+            payload[v] = "{{ %s }}" % v
+    else:
+        for v in vs:
+            payload[v] = ""
 
     return jsonify(success=True, payload=payload, status_code=200)
 
@@ -341,10 +425,13 @@ def import_template():
     """
     posted_json = request.get_json(force=True)
     try:
+        print("IMPORTING TEMPLATE")
         name = posted_json['name']
-        template = posted_json['template']
+        encoded_template = posted_json['template']
         description = posted_json.get('description', 'Imported Template')
         template_type = posted_json.get('type', 'bootstrap')
+        template = unquote(encoded_template)
+        print(template)
 
     except KeyError:
         print("Not all required keys are present!")
@@ -380,6 +467,18 @@ def delete_template():
 def list_templates():
     ts = bootstrapper_utils.list_bootstrap_templates()
     return jsonify(success=True, templates=ts, status_code=200)
+
+
+@app.route('/api/v0.1/get_template', methods=['POST'])
+def get_template():
+    posted_json = request.get_json(force=True)
+    try:
+        name = posted_json['template_name']
+    except KeyError:
+        print("Not all required keys are present!")
+
+    ts = bootstrapper_utils.get_template(name)
+    return Response(ts, mimetype='text/plain')
 
 
 @app.route('/api/v0.1/list_init_cfg_templates', methods=['GET'])

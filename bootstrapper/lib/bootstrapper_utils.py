@@ -251,7 +251,35 @@ def __get_template(template_path):
     return env.get_template(template_path)
 
 
-def __get_required_vars_from_template(template_name):
+def get_template(template_name):
+    """
+    :param template_name: Name of the template to return
+    :return: string containing the template content or None
+    """
+
+    t = Template.query.filter(Template.name == template_name).first()
+
+    if t is None:
+        print('Could not load template %s' % template_name)
+        return None
+
+    return t.template
+
+
+def template_exists(template_name):
+    """
+    Checks if a template actually exists in the db
+    :param template_name: name of the template to check
+    :return: boolean
+    """
+    t = Template.query.filter(Template.name == template_name).first()
+    if t is None:
+        return False
+    else:
+        return True
+
+
+def get_required_vars_from_template(template_name):
     """
     Parse the template and return a list of all the variables defined therein
     template path is usually something like 'templates/panos/bootstrap.xml'
@@ -268,25 +296,22 @@ def __get_required_vars_from_template(template_name):
     else:
         print('Got a template, lets go')
 
-    #app_root_path = os.path.abspath(os.path.join(app.root_path, '..'))
-    #env = jinja2.Environment(loader=FileSystemLoader(app_root_path))
-    #template = env.loader.get_source(env, template_path)
-
-    print(t.template)
+    # get the jinja environment to use it's parse function
     env = jinja2.Environment()
+    # parse returns an AST that can be send to the meta module
     ast = env.parse(t.template)
-    print(ast)
+    # return a set of all variable defined in the template
     return meta.find_undeclared_variables(ast)
 
 
-def verify_data(available_vars):
+def verify_data(template, available_vars):
     """
     Verify all the required variables have been posted from the user
+    :param template: jinja2 template to check
     :param available_vars: dict of all available variables from the posted data and also the defaults
     :return:
     """
-    template_path = get_bootstrap_template()
-    vs = __get_required_vars_from_template(template_path)
+    vs = get_required_vars_from_template(template)
     print(vs)
     for r in vs:
         print("checking var: %s" % r)
@@ -310,12 +335,12 @@ def get_bootstrap_variables(requested_templates):
     init_cfg_name = requested_templates.get('init_cfg_template', 'init-cfg-static.txt')
     bootstrap_name = requested_templates.get('bootstrap_template', None)
 
-    init_cfg_vars = __get_required_vars_from_template(init_cfg_name)
+    init_cfg_vars = get_required_vars_from_template(init_cfg_name)
     for i in init_cfg_vars:
         available_variables.append(i)
 
     if bootstrap_name != "None" or bootstrap_name is not None:
-        vs = __get_required_vars_from_template(bootstrap_name)
+        vs = get_required_vars_from_template(bootstrap_name)
         for b in vs:
             available_variables.append(b)
 
@@ -330,18 +355,18 @@ def generate_boostrap_config_with_defaults(defaults, configuration_parameters):
     :return: dict of context parameters
     """
 
-    if 'bootstrap_template_name' in configuration_parameters:
+    if 'bootstrap_template' in configuration_parameters:
         bootstrap_template_name = configuration_parameters['bootstrap_template']
     else:
         config = load_config()
-        bootstrap_template_name = config.get('default_template', 'Default')
+        bootstrap_template_name = config.get('default_template', 'Default Bootstrap.xml')
 
     bootstrap_config = {}
     # populate with defaults if they exist
     if 'bootstrap' in defaults:
         bootstrap_config.update(defaults['bootstrap'])
 
-    defined_vars = __get_required_vars_from_template(bootstrap_template_name)
+    defined_vars = get_required_vars_from_template(bootstrap_template_name)
     # push all the required keys - should have already been validated
     for k in defined_vars:
         bootstrap_config[k] = configuration_parameters.get(k, None)
@@ -381,18 +406,24 @@ def import_templates():
         except OSError:
             print('Could not open file for importing')
 
-    init_cfg_static = Template.query.filter(Template.name == 'Default Init-Cfg Static').first()
+    print('Importing init-cfg-static')
+    init_cfg_static = Template.query.filter(Template.name == 'init-cfg-static.txt').first()
     if init_cfg_static is None:
         print('Importing default init-cfg-static')
         ics_file_path = os.path.abspath(os.path.join(app.root_path, '..', 'templates/panos/init-cfg-static.txt'))
         try:
+            print(
+                'opening file init-cfg-static'
+            )
             with open(ics_file_path, 'r') as icsf:
-                i = Template(name='Default Init-Cfg Static',
+                i = Template(name='init-cfg-static.txt',
                              description='Init-Cfg with static management IP addresses',
                              template=icsf.read(),
                              type='init-cfg')
 
+                print('add to db')
                 db_session.add(i)
+                print('commit to db')
                 db_session.commit()
         except OSError:
             print('Could not open file for importing')
@@ -421,6 +452,7 @@ def import_templates():
     for it in all_imported_files:
         t = Template.query.filter(Template.name == it).first()
         if t is None:
+            print('this template does not exist %s' % it)
             try:
                 with open(os.path.join(import_directory, it), 'r') as tf:
                     t = Template(name=it,
