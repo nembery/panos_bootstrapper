@@ -398,11 +398,13 @@ def build_base_configs(configuration_parameters):
 
     config = load_config()
     defaults = load_defaults()
-
+    print('WTF')
     # first check for a custom init-cfg file passed in as a parameter
     if 'init_cfg_template' in configuration_parameters:
+        print('found a valid init_cfg_template')
         init_cfg_name = configuration_parameters['init_cfg_template']
         init_cfg_template = get_template(init_cfg_name)
+        print(init_cfg_template)
         if init_cfg_template is None:
             init_cfg_template = get_template(config.get('default_init_cfg'), 'init-cfg-static.txt')
     else:
@@ -425,10 +427,10 @@ def build_base_configs(configuration_parameters):
     init_cfg_key = cache_utils.set(init_cfg_contents)
 
     base_config = dict()
-    base_config['init-cfg-static.txt'] = dict()
-    base_config['init-cfg-static.txt']['key'] = init_cfg_key
-    base_config['init-cfg-static.txt']['archive_path'] = 'config'
-    base_config['init-cfg-static.txt']['url'] = config["base_url"] + '/get/' + init_cfg_key
+    base_config['init-cfg.txt'] = dict()
+    base_config['init-cfg.txt']['key'] = init_cfg_key
+    base_config['init-cfg.txt']['archive_path'] = 'config'
+    base_config['init-cfg.txt']['url'] = config["base_url"] + '/get/' + init_cfg_key
 
     if 'auth_key' in configuration_parameters:
         authcode = render_template('panos/authcodes', **configuration_parameters)
@@ -438,8 +440,11 @@ def build_base_configs(configuration_parameters):
         base_config['authcodes']['archive_path'] = 'license'
         base_config['authcodes']['url'] = config["base_url"] + '/get/' + init_cfg_key
 
-    if 'bootstrap_template' in configuration_parameters:
+    if 'bootstrap_template' in configuration_parameters and configuration_parameters['bootstrap_template'] != 'None':
+        print('Using a bootstrap_template here')
+        print(configuration_parameters['bootstrap_template'])
         bootstrap_template_name = configuration_parameters['bootstrap_template']
+        print(bootstrap_template_name)
         bootstrap_config = generate_boostrap_config_with_defaults(defaults, configuration_parameters)
 
         bootstrap_template = get_template(bootstrap_template_name)

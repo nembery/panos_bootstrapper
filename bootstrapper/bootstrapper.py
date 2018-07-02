@@ -92,6 +92,7 @@ def generate_bootstrap_package():
     except (BadRequest, RequiredParametersError):
         abort(400, 'Invalid input parameters')
     except TemplateNotFoundError:
+        print('Could not load tempaltes!')
         abort(500, 'Could not load template!')
 
     # if desired deployment type is openstack, then add the heat templates and whatnot
@@ -110,15 +111,18 @@ def generate_bootstrap_package():
     # user has specified they want an ISO built
     if archive_type == 'iso':
         archive = archive_utils.create_iso(base_config, posted_json['hostname'])
+        mime_type = 'application/iso-image'
 
     else:
         # no ISO required, just make a zip
         archive = archive_utils.create_archive(base_config, posted_json['hostname'])
+        mime_type = 'application/zip'
+
     print("archive path is: %s" % archive)
     if archive is None:
         abort(500, 'Could not create archive! Check bootstrapper logs for more information')
 
-    return send_file(archive)
+    return send_file(archive, mimetype=mime_type)
 
 
 @app.route('/get_bootstrap_variables', methods=['POST'])
