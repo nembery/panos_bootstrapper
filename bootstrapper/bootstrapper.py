@@ -14,9 +14,8 @@ from bootstrapper.lib import bootstrapper_utils
 from bootstrapper.lib import cache_utils
 from bootstrapper.lib.db import db_session
 from bootstrapper.lib.db import init_db
-from bootstrapper.lib.exceptions import TemplateNotFoundError
 from bootstrapper.lib.exceptions import RequiredParametersError
-from bootstrapper.lib.exceptions import InvalidConfigurationError
+from bootstrapper.lib.exceptions import TemplateNotFoundError
 
 app = Flask(__name__)
 defaults = bootstrapper_utils.load_defaults()
@@ -170,7 +169,9 @@ def import_template():
         r = jsonify(message="Not all required keys for add template are present", success=False, status_code=400)
         r.status_code = 400
         return r
-
+    print('Importing template with name: %s' % name)
+    print('Importing template with description: %s' % description)
+    print(template)
     if bootstrapper_utils.import_template(template, name, description, template_type):
         return jsonify(success=True, message='Imported Template Successfully', status_code=200)
     else:
@@ -243,4 +244,3 @@ def init_application():
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
-

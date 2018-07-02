@@ -400,8 +400,8 @@ def build_base_configs(configuration_parameters):
     defaults = load_defaults()
 
     # first check for a custom init-cfg file passed in as a parameter
-    if 'init_cfg' in configuration_parameters:
-        init_cfg_name = configuration_parameters['init_cfg']
+    if 'init_cfg_template' in configuration_parameters:
+        init_cfg_name = configuration_parameters['init_cfg_template']
         init_cfg_template = get_template(init_cfg_name)
         if init_cfg_template is None:
             init_cfg_template = get_template(config.get('default_init_cfg'), 'init-cfg-static.txt')
