@@ -8,6 +8,7 @@ LABEL maintainer="nembery@paloaltonetworks.com"
 WORKDIR /app
 ADD requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
+RUN apk add --update cdrkit
 
 COPY bootstrapper /app/bootstrapper
 COPY tests /app/tests

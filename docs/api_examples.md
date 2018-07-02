@@ -5,12 +5,12 @@ This document shows some of the available options using the API
 
 ## Simple Caching System Debuggin
 ```bash
-DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{"contents": "hi there"}' http://localhost:5000/api/v0.1/set_object 
+DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{"contents": "hi there"}' http://localhost:5000/set 
 {
   "key": "bead72e4-5708-48ce-9eda-27d7bc5b72da", 
   "success": true
 }
-DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{"key": "bead72e4-5708-48ce-9eda-27d7bc5b72da"}' http://localhost:5000/api/v0.1/get_object
+DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{"key": "bead72e4-5708-48ce-9eda-27d7bc5b72da"}' http://localhost:5000/get_object
 {
   "contents": "hi there", 
   "key": "bead72e4-5708-48ce-9eda-27d7bc5b72da"
@@ -37,7 +37,7 @@ DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{"deployment_type": "openstack",
         "inside_ip": "192.168.3.100",
         "ethernet2_1_profile": "PINGSSHTTPS",
         "ethernet1_1_profile": "PINGSSHTTPS",
-        "default_next_hop": "10.10.10.10"}' http://localhost:5000/api/v0.1/generate_openstack_archive -o panos-01.zip
+        "default_next_hop": "10.10.10.10"}' http://localhost:5000/generate_openstack_archive -o panos-01.zip
 
 ```
 
@@ -55,5 +55,5 @@ DFWMACK0AJHTDG:docs nembery$ curl -X POST -d '{
         "ethernet2_1_profile": "PINGSSHTTPS",
         "ethernet1_1_profile": "PINGSSHTTPS",
         "default_next_hop": "10.10.10.10"
-    }'  http://localhost:5000/api/v0.1/generate_kvm_iso -o panos-01.iso
+    }'  http://localhost:5000/generate_kvm_iso -o panos-01.iso
 ```

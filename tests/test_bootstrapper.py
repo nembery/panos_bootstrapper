@@ -17,29 +17,10 @@ def test_index(client):
     :param client: test client
     :return: test assertions
     """
+    print("Test: Basic Availability".center(79, '-'))
+
     rv = client.get('/')
     assert b'Bootstrapper' in rv.data
-
-
-def set_object(client, contents):
-    """
-    Tests the set_object api for the caching system
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        'contents': contents
-    }
-    return client.post('/api/v0.1/set_object', data=json.dumps(params), content_type='application/json')
-
-
-def get_object(client, key):
-    """
-    Test the caching system get_object
-    :param client: test client
-    :return: test assertions
-    """
-    return client.get('/api/v0.1/get_object/%s' % key)
 
 
 def test_caching(client):
@@ -48,103 +29,108 @@ def test_caching(client):
     :param client: test client
     :return: test assertions
     """
-    r = set_object(client, 'HI THERE')
+    print("Test: Caching".center(79, '-'))
+
+    params = {
+        'contents': 'HI THERE'
+    }
+    r = client.post('/set', data=json.dumps(params), content_type='application/json')
     d = json.loads(r.data)
     assert d['success'] is True
     assert d['key'] is not None
 
     key = d['key']
-    r = get_object(client, key)
-    d = json.loads(r.data)
-    assert d['contents'] == 'HI THERE'
+    r = client.get('/get/%s' % key)
+    d = r.data
+    assert b'HI THERE' in d
 
 
-def test_build_openstack_bootstrap(client):
-    """
-    Tests build_bootstrap with deploy option set to openstack
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        "deployment_type": "openstack",
-        "bootstrap_template": "Default Bootstrap.xml",
-        "hostname": "panos-81",
-        "auth_key": "v123",
-        "management_ip": "192.168.1.100",
-        "management_netmask": "255.255.255.0",
-        "management_gateway": "192.168.1.254",
-        "management_network": "mgmt",
-        "management_subnet": "mgmt-subnet",
-        "dns_server": "192.168.1.2",
-        "image_name": "panos-81.img",
-        "image_flavor": "m1.xlarge",
-        "outside_network": "outside",
-        "outside_subnet": "outside-subnet",
-        "outside_ip": "192.168.2.100",
-        "inside_network": "inside",
-        "inside_subnet": "inside-subnet",
-        "inside_ip": "192.168.3.100",
-        "ethernet2_1_profile": "PINGSSHTTPS",
-        "ethernet1_1_profile": "PINGSSHTTPS",
-        "default_next_hop": "10.10.10.10"
-    }
-    r = client.post('/api/v0.1/debug_openstack_config', data=json.dumps(params), content_type='application/json')
-    print(r.data)
-    d = json.loads(r.data)
-    assert r.status_code == 200
-    assert d['openstack_config'] is not None
-    # assert d['openstack_config']['hostname'] == "panos-81"
-    assert d['success'] is True
-
-
-def test_build_base_configs(client):
-    """
-    Tests build base_configs
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        "deployment_type": "openstack",
-        "hostname": "panos-81",
-        "auth_key": "v123",
-        "management_ip": "192.168.1.100",
-        "management_netmask": "255.255.255.0",
-        "management_gateway": "192.168.1.254",
-        "dns_server": "192.168.1.2",
-        "ethernet2_1_profile": "PINGSSHTTPS",
-        "ethernet1_1_profile": "PINGSSHTTPS",
-        "default_next_hop": "10.10.10.10"
-    }
-    r = client.post('/api/v0.1/debug_base_config', data=json.dumps(params), content_type='application/json')
-    print(r.data)
-    d = json.loads(r.data)
-    assert d['success'] is True
-
-
-def test_build_openstack_configs(client):
-    """
-    Tests build openstack_configs
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        "deployment_type": "openstack",
-        "hostname": "panos-81",
-        "auth_key": "v123",
-        "management_ip": "192.168.1.100",
-        "management_netmask": "255.255.255.0",
-        "management_gateway": "192.168.1.254",
-        "dns_server": "192.168.1.2",
-        "outside_ip": "192.168.2.100",
-        "inside_ip": "192.168.3.100",
-        "ethernet2_1_profile": "PINGSSHTTPS",
-        "ethernet1_1_profile": "PINGSSHTTPS",
-        "default_next_hop": "10.10.10.10"
-    }
-    r = client.post('/api/v0.1/debug_openstack_config', data=json.dumps(params), content_type='application/json')
-    print(r.data)
-    d = json.loads(r.data)
-    assert d['success'] is True
+# def test_build_openstack_bootstrap(client):
+#     """
+#     Tests build_bootstrap with deploy option set to openstack
+#     :param client: test client
+#     :return: test assertions
+#     """
+#     params = {
+#         "deployment_type": "openstack",
+#         "bootstrap_template": "Default Bootstrap.xml",
+#         "hostname": "panos-81",
+#         "auth_key": "v123",
+#         "management_ip": "192.168.1.100",
+#         "management_netmask": "255.255.255.0",
+#         "management_gateway": "192.168.1.254",
+#         "management_network": "mgmt",
+#         "management_subnet": "mgmt-subnet",
+#         "dns_server": "192.168.1.2",
+#         "image_name": "panos-81.img",
+#         "image_flavor": "m1.xlarge",
+#         "outside_network": "outside",
+#         "outside_subnet": "outside-subnet",
+#         "outside_ip": "192.168.2.100",
+#         "inside_network": "inside",
+#         "inside_subnet": "inside-subnet",
+#         "inside_ip": "192.168.3.100",
+#         "ethernet2_1_profile": "PINGSSHTTPS",
+#         "ethernet1_1_profile": "PINGSSHTTPS",
+#         "default_next_hop": "10.10.10.10"
+#     }
+#     r = client.post('/debug_openstack_config', data=json.dumps(params), content_type='application/json')
+#     print(r.data)
+#     d = json.loads(r.data)
+#     assert r.status_code == 200
+#     assert d['openstack_config'] is not None
+#     # assert d['openstack_config']['hostname'] == "panos-81"
+#     assert d['success'] is True
+#
+#
+# def test_build_base_configs(client):
+#     """
+#     Tests build base_configs
+#     :param client: test client
+#     :return: test assertions
+#     """
+#     params = {
+#         "deployment_type": "openstack",
+#         "hostname": "panos-81",
+#         "auth_key": "v123",
+#         "management_ip": "192.168.1.100",
+#         "management_netmask": "255.255.255.0",
+#         "management_gateway": "192.168.1.254",
+#         "dns_server": "192.168.1.2",
+#         "ethernet2_1_profile": "PINGSSHTTPS",
+#         "ethernet1_1_profile": "PINGSSHTTPS",
+#         "default_next_hop": "10.10.10.10"
+#     }
+#     r = client.post('/debug_base_config', data=json.dumps(params), content_type='application/json')
+#     print(r.data)
+#     d = json.loads(r.data)
+#     assert d['success'] is True
+#
+#
+# def test_build_openstack_configs(client):
+#     """
+#     Tests build openstack_configs
+#     :param client: test client
+#     :return: test assertions
+#     """
+#     params = {
+#         "deployment_type": "openstack",
+#         "hostname": "panos-81",
+#         "auth_key": "v123",
+#         "management_ip": "192.168.1.100",
+#         "management_netmask": "255.255.255.0",
+#         "management_gateway": "192.168.1.254",
+#         "dns_server": "192.168.1.2",
+#         "outside_ip": "192.168.2.100",
+#         "inside_ip": "192.168.3.100",
+#         "ethernet2_1_profile": "PINGSSHTTPS",
+#         "ethernet1_1_profile": "PINGSSHTTPS",
+#         "default_next_hop": "10.10.10.10"
+#     }
+#     r = client.post('/debug_openstack_config', data=json.dumps(params), content_type='application/json')
+#     print(r.data)
+#     d = json.loads(r.data)
+#     assert d['success'] is True
 
 
 def test_build_openstack_archive(client):
@@ -153,6 +139,8 @@ def test_build_openstack_archive(client):
     :param client: test client
     :return: test assertions
     """
+    print("Test: Build Openstack Archive".center(79, '-'))
+
     params = {
         "deployment_type": "openstack",
         "hostname": "panos-81",
@@ -167,37 +155,37 @@ def test_build_openstack_archive(client):
         "ethernet1_1_profile": "PINGSSHTTPS",
         "default_next_hop": "10.10.10.10"
     }
-    r = client.post('/api/v0.1/generate_openstack_archive', data=json.dumps(params), content_type='application/json')
+    r = client.post('/generate_bootstrap_package', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
 
 
-def test_add_template_location(client):
-    """
-    Tests the api to add a template location to the configuration
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        "name": "TEST_LOCATION",
-        "description": "ADDED BY PYTEST",
-        "type": "local",
-        "location": "templates/test/123"
-    }
-    r = client.post('/api/v0.1/add_template_location', data=json.dumps(params), content_type='application/json')
-    assert r.status_code == 200
-
-
-def test_remove_template_location(client):
-    """
-    Tests the api to add a template location to the configuration
-    :param client: test client
-    :return: test assertions
-    """
-    params = {
-        "name": "TEST_LOCATION"
-    }
-    r = client.post('/api/v0.1/remove_template_location', data=json.dumps(params), content_type='application/json')
-    assert r.status_code == 200
+# def test_add_template_location(client):
+#     """
+#     Tests the api to add a template location to the configuration
+#     :param client: test client
+#     :return: test assertions
+#     """
+#     params = {
+#         "name": "TEST_LOCATION",
+#         "description": "ADDED BY PYTEST",
+#         "type": "local",
+#         "location": "templates/test/123"
+#     }
+#     r = client.post('/add_template_location', data=json.dumps(params), content_type='application/json')
+#     assert r.status_code == 200
+#
+#
+# def test_remove_template_location(client):
+#     """
+#     Tests the api to add a template location to the configuration
+#     :param client: test client
+#     :return: test assertions
+#     """
+#     params = {
+#         "name": "TEST_LOCATION"
+#     }
+#     r = client.post('/remove_template_location', data=json.dumps(params), content_type='application/json')
+#     assert r.status_code == 200
 
 
 def test_get_bootstrap_variables(client):
@@ -206,10 +194,12 @@ def test_get_bootstrap_variables(client):
     :param client: test client
     :return: test assertions
     """
+    print("Test: Get Template Variables".center(79, '-'))
+
     params = {
         "bootstrap_template": "Default bootstrap.xml"
     }
-    r = client.post('/api/v0.1/get_bootstrap_variables', data=json.dumps(params), content_type='application/json')
+    r = client.post('/get_bootstrap_variables', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
     d = json.loads(r.data)
     assert d['success'] is True
@@ -222,12 +212,14 @@ def test_import_template(client):
     :param client: test client
     :return: test assertions
     """
+    print("Test: Import Template".center(79, '-'))
+
     params = {
         "name": "TEST_IMPORT",
         "description": "ADDED BY PYTEST",
         "template": "ASDFDFLKSDF:LKSD:KLSDF:LKSFDLDS:LKSDF:LKSD:LKSD:FLKSDF:KLSD:F"
     }
-    r = client.post('/api/v0.1/import_template', data=json.dumps(params), content_type='application/json')
+    r = client.post('/import_template', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
     d = json.loads(r.data)
     assert d['success'] is True
@@ -239,10 +231,11 @@ def test_get_template(client):
     :param client: test client
     :return: test assertions
     """
+    print("Test: Get Template".center(79, '-'))
     params = {
         "template_name": "TEST_IMPORT"
     }
-    r = client.post('/api/v0.1/get_template', data=json.dumps(params), content_type='application/json')
+    r = client.post('/get_template', data=json.dumps(params), content_type='application/json')
     print(r)
     assert r.status_code == 200
     assert b"ASDF" in r.data
@@ -258,13 +251,8 @@ def test_list_templates(client):
     :return: test assertions
     """
 
-    # # manually write a file into the import directory
-    # with open('./bootstrapper/templates/import/MANUAL_IMPORT', 'w') as mi:
-    #     mi.write('manually imported template')
-    #
-    # time.sleep(1)
-    # call the list templates API
-    r = client.get('/api/v0.1/list_templates')
+    print("Test: List Templates".center(79, '-'))
+    r = client.get('/list_templates')
     assert r.status_code == 200
     d = json.loads(r.data)
     assert d['success'] is True
@@ -286,18 +274,20 @@ def test_delete_template(client):
     :param client: test client
     :return: test assertions
     """
+
+    print("Test: Delete Template".center(79, '-'))
     params = {
-        "name": "TEST_IMPORT"
+        "template_name": "TEST_IMPORT"
     }
-    r = client.post('/api/v0.1/delete_template', data=json.dumps(params), content_type='application/json')
+    r = client.post('/delete_template', data=json.dumps(params), content_type='application/json')
     assert r.status_code == 200
     d = json.loads(r.data)
     assert d['success'] is True
 
     # also delete our manually created file as well
     params = {
-        "name": "MANUAL_IMPORT"
+        "template_name": "MANUAL_IMPORT"
     }
-    m = client.post('/api/v0.1/delete_template', data=json.dumps(params), content_type='application/json')
+    m = client.post('/delete_template', data=json.dumps(params), content_type='application/json')
     assert m.status_code == 200
 

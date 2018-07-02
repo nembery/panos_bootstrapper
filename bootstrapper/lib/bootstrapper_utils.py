@@ -4,53 +4,53 @@ import jinja2
 import yaml
 from flask import Flask
 from flask import g
-from jinja2 import FileSystemLoader
+from flask import render_template
+from flask import render_template_string
 from jinja2 import meta
+from jinja2 import TemplateSyntaxError
+from sqlalchemy.exc import SQLAlchemyError
 
+from bootstrapper.lib import cache_utils
+from bootstrapper.lib import openstack_utils
 from bootstrapper.lib.db import db_session
 from bootstrapper.lib.db_models import Template
+from bootstrapper.lib.exceptions import RequiredParametersError
+from bootstrapper.lib.exceptions import TemplateNotFoundError
+from bootstrapper.lib.exceptions import InvalidConfigurationError
 
 app = Flask(__name__)
 
 
-def get_bootstrap_template():
-    config = load_config()
-    print('config is %s' % config)
-    default = config.get('default_template', 'Default')
-    for tl in config.get('template_locations', {}):
-        name = tl.get('name', '')
-        print(f"checking {name}")
-        if name == default:
-            bootstrap_template = tl['location'] + '/bootstrap.xml'
-            return bootstrap_template
-
-    print("OH NO! Returning default location")
-    return 'templates/panos/bootstrap.xml'
-
-
-def get_bootstrap_template_old():
-    config = load_config()
-    print('config is %s' % config)
-    default = config.get('default_template', 'Default')
-    for tl in config.get('template_locations', {}):
-        name = tl.get('name', '')
-        print(f"checking {name}")
-        if name == default:
-            bootstrap_template = tl['location'] + '/bootstrap.xml'
-            return bootstrap_template
-
-    print("OH NO! Returning default location")
-    return 'templates/panos/bootstrap.xml'
-
-
 def load_defaults():
-    with open(os.path.join(app.root_path, '../conf/defaults.yaml')) as config_file:
-        defaults = yaml.load(config_file.read())
+    """
+    Loads the defatult configuration values from a local file. This allows an operator to pre-load some defaults
+    for jinja variable interpolation. This may be useful to customize behaviour of this service without modifying
+    code and without exposing those defaults to a UI of client interface
+    See the bootstrapper/conf/defaults.yaml for examples.
 
-    return defaults
+    The UI or client interface can always overwrite these!  To always enforce options just hard code them into
+    the template directly
+
+    :return: dict containing default values
+    """
+    with app.app_context():
+        defaults = getattr(g, 'bootstrap_config', None)
+        if defaults is None:
+            try:
+                with open(os.path.join(app.root_path, '../conf/defaults.yaml')) as config_file:
+                    defaults = yaml.load(config_file.read())
+            except yaml.scanner.ScannerError:
+                print("Could not load defaults!")
+                raise InvalidConfigurationError('Could not parse defaults configuration file')
+
+        return defaults
 
 
 def load_config():
+    """
+    Loads and caches the bootstrapper service configuration from the bootstrapper/conf/configuration.yaml file
+    :return: dict containing all configuration options
+    """
     with app.app_context():
         config = getattr(g, 'bootstrap_config', None)
         if config is None:
@@ -68,123 +68,41 @@ def load_config():
 
                 g.bootstrap_config = config
 
-                # with open(os.path.join(app.root_path, '../conf/templates.yaml')) as template_config_file:
-                #     template_config_object = yaml.load(template_config_file.read())
-                #
-                #     if 'template_locations' in template_config_object:
-                #         config['template_locations'] = template_config_object['template_locations']
-                #
-                #     else:
-                #         print("Invalid template configuration file at templates.yaml")
-
             except yaml.scanner.ScannerError:
                 print("Could not load configuration files!")
-                raise
+                raise InvalidConfigurationError('Could not load configuration')
 
         return config
 
 
-def save_config(new_config):
-    try:
-        with open(os.path.join(app.root_path, '../conf/configuration.yaml'), 'w') as config_file:
-            config_object = yaml.safe_dump(new_config, default_flow_style=False)
-            config_file.write(config_object)
-            with app.app_context():
-                g.bootstrap_config = config_object
-
-    except OSError:
-        print("Could not save new configuration!")
-        return False
-
-    return True
-
-
-def import_template(template, file_name, description, template_type='bootstrap'):
+def import_template(template, template_name, description, template_type='bootstrap'):
     """
     Imports a template into the templates/imports directory and saves the metadata into the app config
     :param template: string of the template text
-    :param file_name: name of the file to save
+    :param template_name: name of the file to save
     :param description: description to save in the configured templates
+    :param template_type: type of the template to save. Enum with options 'bootstrap', 'init-cfg', and 'config-snippet'
 
     :return: boolean
     """
-    t = Template.query.filter(Template.name == file_name).first()
-
-    if t is None:
-        print('Adding new record to db')
-        unescaped_template = unescape(template)
-        t = Template(name=file_name, description=description, template=unescaped_template, type=template_type)
-        db_session.add(t)
-        db_session.commit()
-
-    else:
-        print('template exists in db')
-
-    return True
-
-
-def import_template_OLD(template, file_name, description):
-    """
-    Imports a template into the templates/imports directory and saves the metadata into the app config
-    :param template: string of the template text
-    :param file_name: name of the file to save
-    :param description: description to save in the configured templates
-
-    :return: boolean
-    """
-
-    loaded_config = load_config()
-
-    new_import = dict()
-    new_import['name'] = file_name
-    new_import['location'] = 'templates/import'
-    new_import['description'] = description
-    new_import['type'] = 'local'
-
-    for location in loaded_config['template_locations']:
-        if location['name'] == file_name and location['type'] == 'local':
-            print("A template with this name already exists")
-            return True
-
-    rel_import_directory = loaded_config.get('template_import_directory', 'templates/import')
-    import_directory = os.path.abspath(os.path.join(app.root_path, '..', rel_import_directory))
-
-    print(rel_import_directory)
-
     try:
-        if not os.path.exists(import_directory):
-            print("Creating import directory")
-            os.makedirs(import_directory)
+        t = Template.query.filter(Template.name == template_name).first()
 
-        with open(os.path.join(import_directory, '%s' % file_name), 'w+') as template_file:
-            print("WRITING TEMPLATE")
-            print(os.path.join(import_directory, '%s' % file_name))
+        if t is None:
+            print('Adding new record to db')
             unescaped_template = unescape(template)
-            template_file.write(unescaped_template)
+            t = Template(name=template_name, description=description, template=unescaped_template, type=template_type)
+            db_session.add(t)
+            db_session.commit()
 
-    except OSError:
-        print("Could not save new template!")
+        else:
+            print('template exists in db')
+
+        return True
+    except SQLAlchemyError as sqe:
+        print('Could not import file')
+        print(str(sqe))
         return False
-
-    loaded_config['template_locations'].append(new_import)
-    if not save_config(loaded_config):
-        print("Could not save new configuration with imported template!")
-        return False
-
-    print('Checking DB')
-    t = Template.query.filter(Template.name == file_name).first()
-
-    if t is None:
-        print('Adding new record to db')
-        unescaped_template = unescape(template)
-        t = Template(name=file_name, description=description, template=unescaped_template, type='bootstrap')
-        db_session.add(t)
-        db_session.commit()
-
-    else:
-        print('template exists in db')
-
-    return True
 
 
 def delete_template(file_name):
@@ -193,13 +111,18 @@ def delete_template(file_name):
     :param file_name: name of the file to save
     :return: boolean
     """
-    t = Template.query.filter(Template.name == file_name).first()
+    try:
+        t = Template.query.filter(Template.name == file_name).first()
 
-    if t is not None:
-        db_session.delete(t)
-        db_session.commit()
+        if t is not None:
+            db_session.delete(t)
+            db_session.commit()
 
-    return True
+        return True
+    except SQLAlchemyError as sqe:
+        print('Could not delete template!')
+        print(sqe)
+        return False
 
 
 def list_bootstrap_templates():
@@ -215,15 +138,20 @@ def list_bootstrap_templates():
     default_template['type'] = 'bootstrap'
     all_templates.append(default_template)
 
-    db_templates = Template.query.filter(Template.type == 'bootstrap')
-    for t in db_templates:
-        db_template = dict()
-        db_template['name'] = t.name
-        db_template['description'] = t.description
-        db_template['type'] = t.type
-        all_templates.append(db_template)
+    try:
+        db_templates = Template.query.filter(Template.type == 'bootstrap')
+        for t in db_templates:
+            db_template = dict()
+            db_template['name'] = t.name
+            db_template['description'] = t.description
+            db_template['type'] = t.type
+            all_templates.append(db_template)
 
-    return all_templates
+    except SQLAlchemyError as sqe:
+        print('Could not list bootstrap templates')
+        print(sqe)
+    finally:
+        return all_templates
 
 
 def list_init_cfg_templates():
@@ -234,21 +162,20 @@ def list_init_cfg_templates():
     """
     all_templates = list()
 
-    db_templates = Template.query.filter(Template.type == 'init-cfg')
-    for t in db_templates:
-        db_template = dict()
-        db_template['name'] = t.name
-        db_template['description'] = t.description
-        db_template['type'] = t.type
-        all_templates.append(db_template)
+    try:
+        db_templates = Template.query.filter(Template.type == 'init-cfg')
+        for t in db_templates:
+            db_template = dict()
+            db_template['name'] = t.name
+            db_template['description'] = t.description
+            db_template['type'] = t.type
+            all_templates.append(db_template)
 
-    return all_templates
-
-
-def __get_template(template_path):
-    app_root_path = os.path.abspath(os.path.join(app.root_path, '..'))
-    env = jinja2.Environment(loader=FileSystemLoader(app_root_path))
-    return env.get_template(template_path)
+    except SQLAlchemyError as sqe:
+        print('Could not list init-cfg templates')
+        print(sqe)
+    finally:
+        return all_templates
 
 
 def get_template(template_name):
@@ -256,52 +183,52 @@ def get_template(template_name):
     :param template_name: Name of the template to return
     :return: string containing the template content or None
     """
+    try:
+        t = Template.query.filter(Template.name == template_name).first()
 
-    t = Template.query.filter(Template.name == template_name).first()
+        if t is None:
+            print('Could not load template %s' % template_name)
+            return None
 
-    if t is None:
-        print('Could not load template %s' % template_name)
+        return t.template
+    except SQLAlchemyError as sqe:
+        print('Could not get template')
+        print(sqe)
         return None
-
-    return t.template
-
-
-def template_exists(template_name):
-    """
-    Checks if a template actually exists in the db
-    :param template_name: name of the template to check
-    :return: boolean
-    """
-    t = Template.query.filter(Template.name == template_name).first()
-    if t is None:
-        return False
-    else:
-        return True
 
 
 def get_required_vars_from_template(template_name):
     """
     Parse the template and return a list of all the variables defined therein
     template path is usually something like 'templates/panos/bootstrap.xml'
-    :param template_path: relative path to the application root to a jinja2 template
+    :param template_name: relative path to the application root to a jinja2 template
     :return: set of variable named defined in the template
     """
 
-    t = Template.query.filter(Template.name == template_name).first()
+    template_variables = set()
 
-    if t is None:
-        print('Could not load template %s' % template_name)
-        return set()
+    try:
+        t = Template.query.filter(Template.name == template_name).first()
 
-    else:
-        print('Got a template, lets go')
+        if t is None:
+            print('Could not load template %s' % template_name)
+            return template_variables
 
-    # get the jinja environment to use it's parse function
-    env = jinja2.Environment()
-    # parse returns an AST that can be send to the meta module
-    ast = env.parse(t.template)
-    # return a set of all variable defined in the template
-    return meta.find_undeclared_variables(ast)
+        # get the jinja environment to use it's parse function
+        env = jinja2.Environment()
+        # parse returns an AST that can be send to the meta module
+        ast = env.parse(t.template)
+        # return a set of all variable defined in the template
+        template_variables = meta.find_undeclared_variables(ast)
+
+    except TemplateSyntaxError as tse:
+        print('Could not parse template')
+        print(tse)
+    except SQLAlchemyError as sqe:
+        print('Could not load template variables')
+        print(sqe)
+    finally:
+        return template_variables
 
 
 def verify_data(template, available_vars):
@@ -371,11 +298,6 @@ def generate_boostrap_config_with_defaults(defaults, configuration_parameters):
     for k in defined_vars:
         bootstrap_config[k] = configuration_parameters.get(k, None)
 
-    # push all the optional keys if they exist
-    # for k in defined_vars:
-    #     if k in configuration_parameters:
-    #         bootstrap_config[k] = configuration_parameters[k]
-
     return bootstrap_config
 
 
@@ -435,7 +357,7 @@ def import_templates():
         try:
             with open(icd_file_path, 'r') as icdf:
                 i = Template(name='Default Init-Cfg DHCP',
-                             description='Init-Cfg with static management IP addresses',
+                             description='Init-Cfg with DHCP Assigned IP addresses',
                              template=icdf.read(),
                              type='init-cfg')
 
@@ -465,6 +387,113 @@ def import_templates():
                 print('Could not import bootstrap template!')
 
     # FIXME - add init-cfg importing as well (as soon as we need it)
+
+
+def build_base_configs(configuration_parameters):
+    """
+    Takes a dict of parameters and builds the base configurations
+    :param configuration_parameters:  Simple dict of parameters
+    :return: dict containing 'bootstrap.xml', 'authcodes', and 'init-cfg-static.txt' keys
+    """
+
+    config = load_config()
+    defaults = load_defaults()
+
+    # first check for a custom init-cfg file passed in as a parameter
+    if 'init_cfg' in configuration_parameters:
+        init_cfg_name = configuration_parameters['init_cfg']
+        init_cfg_template = get_template(init_cfg_name)
+        if init_cfg_template is None:
+            init_cfg_template = get_template(config.get('default_init_cfg'), 'init-cfg-static.txt')
+    else:
+        print('using default init-cfg')
+        init_cfg_name = config.get('default_init_cfg', 'init-cfg-static.txt')
+        init_cfg_template = get_template(init_cfg_name)
+
+    if init_cfg_template is None:
+        print('init-cfg-template template was None')
+        raise TemplateNotFoundError('Could not load %s' % init_cfg_name)
+
+    print('getting required_keys')
+    common_required_keys = get_required_vars_from_template(init_cfg_name)
+
+    if not common_required_keys.issubset(configuration_parameters):
+        print("Not all required keys are present for build_base_config!!")
+        raise RequiredParametersError("Not all required keys are present for build_base_config!!")
+
+    init_cfg_contents = render_template_string(init_cfg_template, **configuration_parameters)
+    init_cfg_key = cache_utils.set(init_cfg_contents)
+
+    base_config = dict()
+    base_config['init-cfg-static.txt'] = dict()
+    base_config['init-cfg-static.txt']['key'] = init_cfg_key
+    base_config['init-cfg-static.txt']['archive_path'] = 'config'
+    base_config['init-cfg-static.txt']['url'] = config["base_url"] + '/get/' + init_cfg_key
+
+    if 'auth_key' in configuration_parameters:
+        authcode = render_template('panos/authcodes', **configuration_parameters)
+        authcode_key = cache_utils.set(authcode)
+        base_config['authcodes'] = dict()
+        base_config['authcodes']['key'] = authcode_key
+        base_config['authcodes']['archive_path'] = 'license'
+        base_config['authcodes']['url'] = config["base_url"] + '/get/' + init_cfg_key
+
+    if 'bootstrap_template' in configuration_parameters:
+        bootstrap_template_name = configuration_parameters['bootstrap_template']
+        bootstrap_config = generate_boostrap_config_with_defaults(defaults, configuration_parameters)
+
+        bootstrap_template = get_template(bootstrap_template_name)
+        if bootstrap_template is None:
+            raise TemplateNotFoundError('Could not load bootstrap template!')
+
+        print("checking bootstrap required_variables")
+        if not verify_data(bootstrap_template, bootstrap_config):
+            raise RequiredParametersError('Not all required keys for bootstrap.xml are present')
+
+        bootstrap_xml = render_template_string(bootstrap_template, **bootstrap_config)
+        bs_key = cache_utils.set(bootstrap_xml)
+
+        base_config['bootstrap.xml'] = dict()
+        base_config['bootstrap.xml']['key'] = bs_key
+        base_config['bootstrap.xml']['archive_path'] = 'config'
+        base_config['bootstrap.xml']['url'] = config["base_url"] + '/get/' + bs_key
+
+    return base_config
+
+
+def build_openstack_heat(base_config, posted_json, archive=False):
+    defaults = load_defaults()
+
+    if not openstack_utils.verify_data(posted_json):
+        raise RequiredParametersError("Not all required keys for openstack are present")
+
+    # create the openstack config object that will be used to populate the HEAT template
+    openstack_config = openstack_utils.generate_config(defaults, posted_json)
+    if archive:
+        # the rendered heat template should reference local files that will be included in the archive
+        openstack_config['init_cfg'] = 'init-cfg-static.txt'
+        openstack_config['bootstrap_xml'] = 'bootstrap.xml'
+        openstack_config['authcodes'] = 'authcodes'
+    else:
+        openstack_config['init_cfg'] = base_config['init-cfg-static.txt']['url']
+        openstack_config['bootstrap_xml'] = base_config['bootstrap.xml']['url']
+        openstack_config['authcodes'] = base_config['authcodes']['url']
+
+    heat_env = render_template('openstack/heat-environment.yaml', **openstack_config)
+    heat = render_template('openstack/heat.yaml', **base_config)
+
+    he_key = cache_utils.set(heat_env)
+    h_key = cache_utils.set(heat)
+
+    base_config['heat-environment.yaml'] = dict()
+    base_config['heat-environment.yaml']['key'] = he_key
+    base_config['heat-environment.yaml']['archive_path'] = '.'
+
+    base_config['heat-template.yaml'] = dict()
+    base_config['heat-template.yaml']['key'] = h_key
+    base_config['heat-template.yaml']['archive_path'] = '.'
+
+    return base_config
 
 
 def unescape(s):
